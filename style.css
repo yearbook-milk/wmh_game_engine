@@ -1,0 +1,37 @@
+@font-face {
+  font-family: "typewriter";
+  src: url("/font/JMH Typewriter.ttf") format("truetype");
+}
+
+body {
+	background-color: tan;
+}
+
+div.main_game_flexbox {
+	display: flex; 
+	flex-direction: row; 
+	flex-wrap: wrap; 
+	justify-content: space-evenly;
+}
+
+div.explain_flexbox {
+	white-space: pre-wrap;
+	max-width: 60%;
+}
+
+button.decision_button {
+	color: white;
+	background-color: #185e0b;
+	font-size: 18;
+}
+
+button.decision_button:hover {
+	color: yellow;
+}
+button.decision_button:active {
+	background-color: black;
+}
+
+.typewriter_font {
+	font-family: typewriter;
+}
