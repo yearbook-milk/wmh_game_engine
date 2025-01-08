@@ -1,0 +1,30 @@
+{
+  "type": "select",
+  "choices": [
+    {
+      "instructions": "goto test_root",
+      "content": "Go back"
+    },
+	{
+      "instructions": "sfx test.mp3;alert This message should show BEFORE or WHILE the sound plays.",
+      "content": "Play sound effect (non-blocking) + alert"
+    },
+	{
+      "instructions": "sfx-blocking test.mp3;alert This message should show AFTER the sound plays",
+      "content": "Play sound effect (blocking) + alert"
+    }
+  ]
+}
+
+====
+
+<h1>Functions test page</h1>
+>> goto [location] - opens page at /pages/[location].html
+
+>> log [message] - logs a message in the console
+>> alert [message] - prompts the user with an alert using an alert() call. This command blocks until the user acknowledges the alert.
+
+>> sfx [url] - starts the sound effect at /sfx/[url].html and does not wait for it to finish. 
+>> sfx-blocking [url] - does the same thing as sfx except it waits for the sound effect to finish before proceeding.
+
+>> stop - intentionally causes an error

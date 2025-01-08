@@ -19,6 +19,7 @@ function httpRetrieve(url, callback) {
 	} else {
 		console.log("[postman] Sending XMLHTTP request to retrieve resource @ " + url);
 		var xhr = new XMLHttpRequest();
+		
 		xhr.onreadystatechange = function() {
 			if (xhr.readyState == 4 && xhr.status == 200) {
 				console.log("[postman] Retrieved resource succesfully!");
@@ -31,19 +32,22 @@ function httpRetrieve(url, callback) {
 				}
 			} else if (xhr.readyState == 4 && xhr.status != 200) {
 				alert("[postman] Error on resource retrieval via network. HTTP code "+xhr.status+"; see console for full response.");
-				console.log("On retrieval, HTTP "+xhr.status+":");
+				console.log("[postman] On retrieval, HTTP "+xhr.status+":");
 				console.log(xhr.responseText);
 				return;
 			}
 		}
 		xhr.open("GET", url);
+		xhr.setRequestHeader('Cache-Control', 'no-cache, no-store, max-age=0');
+		xhr.setRequestHeader('Expires', 'Thu, 1 Jan 1970 00:00:00 GMT');
+		xhr.setRequestHeader('Pragma', 'no-cache');
 		xhr.send();
 	}	
 }
 
 
 // Gameplay
-function clearPage(recreateChoicesHeader = true) {
+function clearPage() {
 	var exp = e("explanation");
 	while (exp.firstChild) {
 		exp.removeChild(exp.lastChild);
@@ -51,12 +55,6 @@ function clearPage(recreateChoicesHeader = true) {
 	var sel = e("choices");
 	while (sel.firstChild) {
 		sel.removeChild(sel.lastChild);
-	}
-	
-	if (recreateChoicesHeader) {
-		var newChoicesHeader = document.createElement("h1");
-		newChoicesHeader.textContent = "Choices";
-		sel.appendChild(newChoicesHeader);
 	}
 }
 
@@ -70,18 +68,48 @@ function loadPage(url) {
 	clearPage();
 	
 	function renderPage(content, metadata) {
-		console.log("M" + metadata);
 		e("explanation").innerHTML = sanitize(content); 
-		if (metadata.type == "select") {
-			console.log("[gameplay] Page is in SELECT mode.");
-		} 
-		else if (metadata.type == "probability") {
-			console.log("[gameplay] Page is in PROBABILITY mode.");
-		}
-		else {
-			console.log("[gameplay] Invalid page type: "+metadata.type);
-			alert("Cannot proceed with option render: invalid page type: "+metadata.type);
-			return;
+		try {
+			if (metadata.type == "select") {
+				console.log("[gameplay] Page is in SELECT mode.");
+				var newChoicesHeader = document.createElement("h1");
+				newChoicesHeader.textContent = "Choices";
+				e("choices").appendChild(newChoicesHeader);
+				for (choice of metadata.choices) {
+					var instructions = JSON.stringify(choice.instructions);
+					var newButton = document.createElement("button");
+					newButton.classList.add("decision_button", "typewriter_font");
+					newButton.innerHTML = sanitize(choice.content.replaceAll("\\n", "<br>").replaceAll("\n", "<br>") + " →");
+					newButton.instructions = sanitize(choice.instructions);
+					e("choices").appendChild(newButton);
+					newButton.onclick = function(e){ evaluateInstructions(this.instructions) };
+					e("choices").appendChild(document.createElement("br"));
+					e("choices").appendChild(document.createElement("br"));
+					console.log("[gameplay] Created new button: ", newButton);
+				}
+			} 
+			else if (metadata.type == "probability") {
+				console.log("[gameplay] Page is in PROBABILITY mode.");
+			}
+			else if (metadata.type == "automatic") {
+				console.log("[gameplay] Page is in AUTOMATIC mode.");
+				console.log("[gameplay] Proceeding to "+metadata.destination+" in "+metadata.delay+" seconds...");
+				setTimeout(function() {
+					evaluateInstructions("goto "+metadata.destination);
+				}, 1000 * Number(metadata.delay));
+			}
+			else if (metadata.type == "static") {
+				console.log("[gameplay] Page is in STATIC mode.");
+				// Do nothing, since this is a static page
+			}
+			else {
+				console.log("[gameplay] Invalid page type: "+metadata.type);
+				alert("Cannot proceed with option render: invalid page type: "+metadata.type);
+				return;
+			}
+		} catch (e) {
+			console.log("[gameplay] Error in rendering page: "+e);
+			alert("Cannot proceed with page/option render. Error not specified, see console.");
 		}
 	}
 	
@@ -103,19 +131,97 @@ function loadPage(url) {
 	});
 }
 
-if (false) {
-        console.log = function(content) {
-            document.getElementById("console").innerHTML += content;
-            document.getElementById("console").innerHTML += "<br><br>";
-        }
 
-        console.warn = function(content) {
-            document.getElementById("console").innerHTML += `<b style="color:yellow">${content}</b>`;
-            document.getElementById("console").innerHTML += "<br><br>";
-        }
+// Evaluation of game instructions
+function initEvaluator() {
+	window.evaluatorBindings = {};
+}
 
-        console.error = function(content) {
-            document.getElementById("console").innerHTML += `<b style="color:red">${content}</b>`;
-            document.getElementById("console").innerHTML += "<br><br>";
-        }
+function evaluatorBind(name, fn, blocking = null) {
+	console.log("[eval] Created new command with name "+name+"; code = "+fn);
+	window.evaluatorBindings[name] = fn;
+}
+
+function evaluateInstructions(instructions, counter = 0) {
+	var insList = instructions.split(";");
+	if (counter > insList.length - 1) {
+		console.log("[eval] Finished evaluating instructions (n = "+(counter)+").");
+		return;
+	}
+	var ins = insList[counter].trim();
+	var params = ins.split(" ");
+	if (window.evaluatorBindings[params[0]] != undefined) {
+		window.evaluatorBindings[params[0]](params.slice(1)).then((successMessage) => {
+			evaluateInstructions(instructions, counter + 1);
+		},
+		(failureMessage) => {
+			console.log("[eval] Rejected promise; stopping exec. Instruction: ",ins,"; reason: "+failureMessage);
+			window.alert("Eval error: rejected Promise on instruction: "+ins+" -- see console.");
+			return;
+		});
+	} else {
+		console.log("[eval] Non-recognized command: "+params+" in "+ins);
+		window.alert("Eval error: non-recognized command: "+params[0]);
+		return;
+	}
+}
+
+window.onload = function() {
+	if (window.localStorage.getItem("nof12") == "enabled") {
+			console.log = function(content) {
+				document.getElementById("console").innerHTML += content;
+				document.getElementById("console").innerHTML += "<br><br>";
+			}
+
+			console.warn = function(content) {
+				document.getElementById("console").innerHTML += `<b style="color:yellow">${content}</b>`;
+				document.getElementById("console").innerHTML += "<br><br>";
+			}
+
+			console.error = function(content) {
+				document.getElementById("console").innerHTML += `<b style="color:red">${content}</b>`;
+				document.getElementById("console").innerHTML += "<br><br>";
+			}
+	}
+	
+	initEvaluator();
+	evaluatorBind("stop", function(s){return Promise.reject("Execution stopped by user.")});
+	evaluatorBind("alert", function(s){alert(s.join(" ")); return Promise.resolve("")});
+	evaluatorBind("log", function(s){console.log("[eval]", s.join(" ")); return Promise.resolve("")});
+	evaluatorBind("goto", function(s){
+		loadPage("/pages/"+s[0]+".html"); 
+		return Promise.resolve("");
+	});
+	evaluatorBind("sfx", function(s) {
+		var url = "/sfx/" + s[0];
+		return new Promise((resolve, reject) => {
+			const audio = new Audio(url);
+			audio.onplay = () => {
+			  resolve('Sound has started');
+			};
+			audio.onerror = (error) => {
+			  reject('Error playing sound: ' + error);
+			};
+			audio.play().catch((error) => {
+			  reject('Error starting sound: ' + error);
+			});
+		});
+	});
+	evaluatorBind("sfx-blocking", function(s) {
+		var url = "/sfx/" + s[0];
+		return new Promise((resolve, reject) => {
+			const audio = new Audio(url);
+			audio.onended = () => {
+			  resolve('Sound has finished playing');
+			};
+			audio.onerror = (error) => {
+			  reject('Error playing sound: ' + error);
+			};
+			audio.play().catch((error) => {
+			  reject('Error starting sound: ' + error);
+			});
+		});
+	});
+	
+	evaluateInstructions("goto test_root");
 }
